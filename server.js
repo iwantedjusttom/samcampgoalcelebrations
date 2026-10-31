@@ -1,10 +1,13 @@
-// Local dev server: serves ./public and routes POST /api/generate to the same
-// handler Vercel uses. Run with:  OPENAI_API_KEY=sk-... npm run dev
+// Local dev server: serves ./public and routes POST /api/* to the same
+// handlers Vercel uses. Run with:  OPENAI_API_KEY=sk-... npm run dev
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import handler from "./api/generate.js";
+import generate from "./api/generate.js";
+import suggest from "./api/suggest.js";
+
+const routes = { "/api/generate": generate, "/api/suggest": suggest };
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "public");
 const PORT = process.env.PORT || 3000;
@@ -20,13 +23,13 @@ try {
 const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml" };
 
 http.createServer(async (req, res) => {
-  if (req.url.startsWith("/api/generate")) {
+  const urlPath = req.url.split("?")[0];
+  if (routes[urlPath]) {
     let raw = "";
     for await (const chunk of req) raw += chunk;
     req.body = raw;
-    return handler(req, res);
+    return routes[urlPath](req, res);
   }
-  const urlPath = req.url.split("?")[0];
   const file = path.join(root, urlPath === "/" ? "index.html" : urlPath);
   if (!file.startsWith(root) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
     res.statusCode = 404;

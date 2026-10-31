@@ -57,15 +57,51 @@
       <label>Anything specific about this win? <span class="hint">(optional, just for this image)</span>
         <textarea id="notes" rows="3" placeholder="e.g. She finished two weeks early and brought her whole team along."></textarea>
       </label>
-      <label>Image style
+      <label>Image style <span class="hint">(the overall artistic identity for every image)</span>
         <textarea id="style" rows="4"></textarea>
       </label>
 
+      <details id="direction-details">
+        <summary>Creative Direction <span id="direction-summary" class="hint"></span></summary>
+        <div class="direction-actions">
+          <button id="try-another" class="small" title="Ask the AI for a meaningfully different concept for the same goal">Try Another Direction</button>
+          <button id="randomize" class="small" title="Instantly shuffle unlocked settings (no AI call)">Randomize Direction</button>
+          <button id="reset-direction" class="small link-btn" title="Set everything back to Auto and clear the concept">Reset to Auto</button>
+        </div>
+        <p id="suggest-status" class="status"></p>
+
+        <label>Visual concept <span class="hint">(leave empty to let the image model invent one)</span>
+          <textarea id="concept" rows="2" placeholder="e.g. Three oversized overlapping records with colorful geometric sound waves, arranged in a rhythmic composition."></textarea>
+        </label>
+        <p id="rationale" class="rationale" hidden></p>
+
+        <div class="grid2" id="direction-fields"></div>
+        <label id="custom-colors-wrap" hidden>Custom colors
+          <input id="custom-colors" type="text" placeholder="e.g. deep teal, saffron, cream, charcoal" />
+        </label>
+
+        <div class="grid3">
+          <label>Main subject / scene <input id="subject" type="text" placeholder="Auto" /></label>
+          <label>Artistic treatment <input id="treatment" type="text" placeholder="Auto" /></label>
+          <label>Perspective <input id="perspective" type="text" placeholder="Auto" /></label>
+        </div>
+        <p class="hint">🔒 Locked settings are kept when you suggest, try another, or randomize. Changing a setting locks it automatically.</p>
+
+        <details id="history-details">
+          <summary>Recent directions <span id="history-count" class="hint"></span></summary>
+          <ol id="history-list"></ol>
+          <button id="clear-history" class="small">Clear history</button>
+        </details>
+      </details>
+
       <details id="template-details">
         <summary>Master prompt template</summary>
-        <p class="hint">How everything gets combined. Placeholders:
+        <p class="hint">How everything gets combined. Layer placeholders:
+          <code>{{goal_context}}</code> <code>{{artistic_identity}}</code> <code>{{creative_direction}}</code>
+          <code>{{variety}}</code> <code>{{output}}</code>. Also available:
           <code>{{name}}</code> <code>{{description}}</code> <code>{{goal_type}}</code> <code>{{goal}}</code>
-          <code>{{notes}}</code> <code>{{all_goals}}</code> <code>{{style}}</code></p>
+          <code>{{notes}}</code> <code>{{all_goals}}</code> <code>{{style}}</code>.
+          Any layer you leave out is appended automatically.</p>
         <textarea id="template" rows="16"></textarea>
         <button id="reset-template" class="small">Reset template &amp; style to default</button>
       </details>
@@ -76,6 +112,15 @@
         <button id="rebuild" class="small">Rebuild from template</button>
       </details>
 
+      <div class="prefs">
+        <label class="inline">Variety <select id="pref-variety"></select></label>
+        <label class="inline">Flexibility <select id="pref-flexibility"></select></label>
+        <label class="inline">Text in image <select id="pref-textMode"></select></label>
+      </div>
+      <label id="goal-wording-wrap" hidden>Goal wording in image <span class="hint">(the only goal text allowed in the image)</span>
+        <input id="goal-wording" type="text" />
+      </label>
+
       <div class="row">
         <label class="inline">Quality
           <select id="quality">
@@ -84,7 +129,10 @@
             <option value="low">Low (fast drafts)</option>
           </select>
         </label>
-        <button id="generate" class="primary">Generate image</button>
+        <div class="row-actions">
+          <button id="suggest" title="Plan a creative direction with AI. Doesn't generate an image.">Suggest Direction</button>
+          <button id="generate" class="primary">Generate image</button>
+        </div>
       </div>
       <p id="status" class="status"></p>
 
@@ -98,6 +146,6 @@
     </section>
   </main>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
