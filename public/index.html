@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Goal Celebrations</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Goal Celebrations</h1>
+    <p class="sub">Describe someone, log their goals, and generate a 1000×1000 celebration image when they complete one.</p>
+  </header>
+
+  <main>
+    <!-- People -->
+    <aside class="panel" id="people-panel">
+      <div class="panel-head">
+        <h2>People</h2>
+        <button id="new-person" class="small">+ New</button>
+      </div>
+      <ul id="people-list"></ul>
+      <div class="backup">
+        <button id="export" class="link">Export backup</button>
+        <label class="link">Import<input type="file" id="import" accept="application/json" hidden /></label>
+      </div>
+    </aside>
+
+    <!-- Profile + goals -->
+    <section class="panel" id="profile-panel">
+      <div id="empty-state">
+        <p>Add a person to get started.</p>
+      </div>
+      <div id="profile" hidden>
+        <div class="panel-head">
+          <h2>Profile</h2>
+          <button id="delete-person" class="small danger">Delete</button>
+        </div>
+        <label>Name
+          <input id="name" type="text" placeholder="e.g. Jordan" />
+        </label>
+        <label>Who they are
+          <textarea id="description" rows="7" placeholder="How you'd describe them, your experience of them, and the qualities you admire. The more specific and personal, the better the image."></textarea>
+        </label>
+
+        <h2>Goals</h2>
+        <div id="goals"></div>
+      </div>
+    </section>
+
+    <!-- Celebrate -->
+    <section class="panel" id="celebrate-panel">
+      <h2>Celebrate</h2>
+      <label>What are we celebrating?
+        <select id="goal-select"></select>
+      </label>
+      <label>Anything specific about this win? <span class="hint">(optional, just for this image)</span>
+        <textarea id="notes" rows="3" placeholder="e.g. She finished two weeks early and brought her whole team along."></textarea>
+      </label>
+      <label>Image style
+        <textarea id="style" rows="4"></textarea>
+      </label>
+
+      <details id="template-details">
+        <summary>Master prompt template</summary>
+        <p class="hint">How everything gets combined. Placeholders:
+          <code>{{name}}</code> <code>{{description}}</code> <code>{{goal_type}}</code> <code>{{goal}}</code>
+          <code>{{notes}}</code> <code>{{all_goals}}</code> <code>{{style}}</code></p>
+        <textarea id="template" rows="16"></textarea>
+        <button id="reset-template" class="small">Reset template &amp; style to default</button>
+      </details>
+
+      <details id="preview-details">
+        <summary>Final prompt <span id="edited-flag" class="hint" hidden>(edited by hand)</span></summary>
+        <textarea id="preview" rows="14"></textarea>
+        <button id="rebuild" class="small">Rebuild from template</button>
+      </details>
+
+      <div class="row">
+        <label class="inline">Quality
+          <select id="quality">
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low (fast drafts)</option>
+          </select>
+        </label>
+        <button id="generate" class="primary">Generate image</button>
+      </div>
+      <p id="status" class="status"></p>
+
+      <div id="result" hidden>
+        <img id="result-img" alt="Generated celebration image" />
+        <div class="row">
+          <button id="download" class="primary">Download 1000×1000 PNG</button>
+          <button id="regenerate" class="small">Try again</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

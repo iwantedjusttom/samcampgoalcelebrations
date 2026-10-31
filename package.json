@@ -1,0 +1,14 @@
+{
+  "name": "samcamp-goal-celebrations",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Generate a celebration image when someone completes a goal.",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
