@@ -12,7 +12,6 @@ A tiny web app: describe someone, log their goals, and when they complete one, g
 - **Color palettes** – create, name, edit, duplicate, and delete palettes of HEX colors under *Manage color palettes*. The selected palette's colors are passed straight into the prompt. Ships with one default palette (Teal & Coral).
 - **Master prompt** – the single illustration prompt used for every image. Placeholders: `{{goal}}`, `{{notes}}`, `{{description}}`, `{{name}}`, `{{goal_type}}`, `{{composition}}`, `{{palette}}`. Missing goal/description/composition/palette sections are appended automatically.
 - **Always enforced** – a strict no-people rule (no humans, faces, hands or body parts, silhouettes, cartoon characters, or anthropomorphic objects) and your *Text in image* choice are appended to every prompt.
-- **Why it looks like this** – after each image, a vision model compares the image with the exact prompt sent and explains which instructions most likely drove the result, why images may repeat, and what to change. The image model doesn't report its own reasoning, so this is an after-the-fact analysis. It never changes the next prompt.
 - **Final prompt** – see (and hand-edit) exactly what gets sent before you generate.
 - **Download** – the image comes back at 1024×1024 (the API's square size) and is downloaded as a 1000×1000 PNG.
 
@@ -41,7 +40,6 @@ No dependencies to install; needs Node 18+.
    - `OPENAI_API_KEY` – required
    - `APP_PASSWORD` – strongly recommended, so a stranger with the URL can't spend your credits
    - `OPENAI_IMAGE_MODEL` – optional; defaults to `gpt-image-2.5-sunburst`, falling back to `gpt-image-2.5-flare` and `gpt-image-2` if a model is retired or unavailable
-   - `OPENAI_TEXT_MODEL` – optional; vision-capable model(s) for the explanation, with automatic fallback
    - `DATABASE_URL` – added by the Neon integration; enables cross-device sync
 3. Deploy. Your API key stays on the server; the browser never sees it.
 

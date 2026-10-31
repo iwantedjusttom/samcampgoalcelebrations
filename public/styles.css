@@ -112,10 +112,3 @@ button:disabled { opacity: .6; cursor: wait; }
 .sync.ok { color: var(--ok); }
 .sync.error { color: #b45309; }
 
-/* ---------- image explanation ---------- */
-.explain { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
-.explain h3 { font-size: 14px; margin: 0 0 4px; }
-.explain h4 { font-size: 12.5px; margin: 12px 0 4px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-.explain p, .explain li { font-size: 13.5px; }
-.explain ul { margin: 0; padding-left: 18px; }
-.explain li { margin-bottom: 4px; }

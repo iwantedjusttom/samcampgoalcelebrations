@@ -6,9 +6,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import generate from "./api/generate.js";
 import data from "./api/data.js";
-import explain from "./api/explain.js";
 
-const routes = { "/api/generate": generate, "/api/data": data, "/api/explain": explain };
+const routes = { "/api/generate": generate, "/api/data": data };
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "public");
 const PORT = process.env.PORT || 3000;
