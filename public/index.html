@@ -124,6 +124,13 @@
           <button id="download" class="primary">Download 1000×1000 PNG</button>
           <button id="regenerate" class="small">Try again</button>
         </div>
+        <div id="explain" class="explain">
+          <h3>Why it looks like this</h3>
+          <p class="hint">A second AI compares the image with the exact prompt that was sent. The image model doesn't report its own reasoning, so this is an informed read of what drove the result, not its actual thinking.</p>
+          <p id="explain-status" class="status"></p>
+          <div id="explain-body"></div>
+          <button id="explain-retry" class="small" hidden>Explain again</button>
+        </div>
       </div>
     </section>
   </main>

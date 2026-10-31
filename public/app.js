@@ -457,6 +457,51 @@ async function apiPost(path, body, retried = false, keepalive = false) {
   return data;
 }
 
+// ---------- explanation (after generation, never affects the image) ----------
+const SUMMARIES_KEY = "goalCelebrations.recentSummaries"; // this device only
+let lastExplainInput = null;
+let explainSeq = 0;
+
+function recentSummaries() {
+  try { const v = JSON.parse(localStorage.getItem(SUMMARIES_KEY)); return Array.isArray(v) ? v : []; } catch { return []; }
+}
+
+async function explainImage() {
+  if (!lastExplainInput) return;
+  const seq = ++explainSeq;
+  $("explain-body").innerHTML = "";
+  $("explain-retry").hidden = true;
+  setStatus("explain-status", "Looking at the image…");
+  try {
+    const { explanation: x } = await apiPost("/api/explain", { ...lastExplainInput, recent: recentSummaries() });
+    if (seq !== explainSeq) return; // a newer image replaced this one
+    renderExplanation(x);
+    setStatus("explain-status", "");
+    localStorage.setItem(SUMMARIES_KEY, JSON.stringify([x.summary, ...recentSummaries()].slice(0, 5)));
+  } catch (err) {
+    if (seq !== explainSeq) return;
+    setStatus("explain-status", `Couldn't get an explanation: ${err.message}`, true);
+  }
+  $("explain-retry").hidden = false;
+}
+
+function renderExplanation(x) {
+  const body = $("explain-body");
+  body.innerHTML = "";
+  const add = (tag, text) => { const el = document.createElement(tag); el.textContent = text; body.appendChild(el); return el; };
+  const list = (title, items) => {
+    if (!items?.length) return;
+    add("h4", title);
+    const ul = add("ul", "");
+    for (const i of items) { const li = document.createElement("li"); li.textContent = i; ul.appendChild(li); }
+  };
+  add("p", x.summary);
+  if (x.composition) { add("h4", "Composition"); add("p", x.composition); }
+  list("What in the prompt drove it", x.drivers);
+  if (x.repetition) { add("h4", "Why images may repeat"); add("p", x.repetition); }
+  list("Try changing", x.adjustments);
+}
+
 // ---------- generation ----------
 let generating = false;
 
@@ -490,6 +535,8 @@ async function generate() {
     lastImage = data.image;
     $("result-img").src = data.image;
     $("result").hidden = false;
+    lastExplainInput = { prompt, image: data.image };
+    explainImage();
     setStatus("status", `Done in ${Math.round((Date.now() - started) / 1000)}s${data.model ? ` with ${data.model}` : ""}.`);
   } catch (err) {
     setStatus("status", err.message, true);
@@ -695,6 +742,7 @@ $("rebuild").onclick = () => refreshPreview(true);
 $("generate").onclick = generate;
 $("regenerate").onclick = generate;
 $("download").onclick = download;
+$("explain-retry").onclick = explainImage;
 
 $("export").onclick = () => {
   const a = document.createElement("a");

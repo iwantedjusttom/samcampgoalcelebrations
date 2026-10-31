@@ -53,7 +53,7 @@ export function modelList(envValue, defaults) {
   return [...new Set([...fromEnv, ...defaults])];
 }
 
-export async function openaiWithFallback(path, models, buildPayload) {
+export async function openaiWithFallback(path, models, buildPayload, envName = "OPENAI_IMAGE_MODEL") {
   const tried = [];
   for (const model of models) {
     try {
@@ -66,7 +66,7 @@ export async function openaiWithFallback(path, models, buildPayload) {
     }
   }
   throw Object.assign(
-    new Error(`None of these OpenAI models are available to your account: ${tried.join(", ")}. Set a current model name in the OPENAI_IMAGE_MODEL environment variable.`),
+    new Error(`None of these OpenAI models are available to your account: ${tried.join(", ")}. Set a current model name in the ${envName} environment variable.`),
     { status: 502 },
   );
 }
