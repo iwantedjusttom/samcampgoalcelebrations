@@ -8,15 +8,12 @@ A tiny web app: describe someone, log their goals, and when they complete one, g
 - **Profile** – name + "who they are" (how you'd describe them, your experience of them, qualities you admire).
 - **Goals** – Professional, Personal, Contribution, Self-honor, plus PM enrollments and Greatness notes. Tick *Complete* and hit *Celebrate →*.
 - **Celebrate** – optional notes about this specific win, an **Image style** box, and a **Master prompt template** that controls how everything is combined. Placeholders: `{{name}}`, `{{description}}`, `{{goal_type}}`, `{{goal}}`, `{{notes}}`, `{{all_goals}}`, `{{style}}`.
-- **Creative Direction** (collapsed by default) – illustration approach, color palette, composition, and emotional tone, all defaulting to *Auto*, plus an editable visual concept, subject, artistic treatment, and perspective.
-  - **Suggest Direction** asks an OpenAI text model to plan a concept from the goal, details, image style, and your last 10 generated directions. It never generates an image.
-  - **Try Another Direction** asks for a meaningfully different concept for the same goal.
-  - **Randomize Direction** instantly shuffles unlocked settings (no AI call).
-  - Changing a setting locks it 🔒, so suggestions and randomizing won't overwrite it.
-  - Skipping all of this still works: *Auto* fields are resolved internally, steering away from recent choices.
-- **Preferences** – Visual variety (Consistent / Balanced / High), Artistic flexibility (Fixed / Related / Experimental), and Text in image (None / Name only / Name and goal). With *None*, the prompt forbids all lettering; otherwise only the approved words are allowed.
-- **Recent directions** – every successful image's direction is saved (last 50) and the last 10 are used to keep the collection varied.
-- **Final prompt** – see (and hand-edit) exactly what gets sent before you generate. It is built in layers: goal context → artistic identity → creative direction → variety → output requirements.
+- **Image style** – the artistic identity every image follows. Composition and subject vary from image to image; the style does not.
+- **Composition Type** – *Auto* (default), Abstract composition, Character-driven illustration, Object-focused artwork, Illustrated environment, or Conceptual storytelling. Composition describes how the image is organized, never the art style.
+- **Visual concept** – when you hit Generate, the app first interprets the accomplishment and plans a concrete concept (plus its main subjects and dominant colors) with an OpenAI text model, then generates. *Try Another Composition* plans a different one for the same goal. You can edit the concept freely, and if planning fails the image is still generated.
+- **Text in image** – None (default), Name only, or Name and goal. With *None*, the prompt forbids all lettering; otherwise only the approved words are allowed.
+- **Recent images** – each successful image's composition, subjects, colors, and concept are saved (last 50); the last 10 steer new concepts away from repeated props, metaphors, and scene structures.
+- **Final prompt** – see (and hand-edit) exactly what gets sent before you generate. It is built in sections: the accomplishment → artistic identity → visual concept & composition → variety → output requirements.
 - **Download** – the image comes back at 1024×1024 (the API's square size) and is downloaded as a 1000×1000 PNG.
 
 ## Cloud database (Neon, free tier)
@@ -45,7 +42,7 @@ No dependencies to install; needs Node 18+.
    - `APP_PASSWORD` – strongly recommended, so a stranger with the URL can't spend your credits
    - `OPENAI_IMAGE_MODEL` – optional; defaults to `gpt-image-2.5-sunburst`, falling back to `gpt-image-2.5-flare` and `gpt-image-2` if a model is retired or unavailable
    - `DATABASE_URL` – added by the Neon integration; enables cross-device sync
-   - `OPENAI_TEXT_MODEL` – optional; model for Suggest Direction, with the same automatic fallback
+   - `OPENAI_TEXT_MODEL` – optional; model that plans the visual concept, with the same automatic fallback
 3. Deploy. Your API key stays on the server; the browser never sees it.
 
 Note: your OpenAI organization may need to be verified before it can use the GPT Image models.
