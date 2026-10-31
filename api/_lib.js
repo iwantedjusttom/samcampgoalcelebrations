@@ -43,3 +43,30 @@ export async function openai(path, payload) {
 }
 
 export const clip = (v, n) => (typeof v === "string" ? v.trim().slice(0, n) : "");
+
+// OpenAI retires model names regularly. Try each candidate in order, moving on
+// only when the error says the model itself is unavailable.
+const MODEL_GONE = /model.*(does not exist|not found|deprecated|shut ?down|retired|no longer|not supported)|do(es)? not have access to (the )?model|invalid model|unknown model/i;
+
+export function modelList(envValue, defaults) {
+  const fromEnv = (envValue || "").split(",").map((m) => m.trim()).filter(Boolean);
+  return [...new Set([...fromEnv, ...defaults])];
+}
+
+export async function openaiWithFallback(path, models, buildPayload) {
+  const tried = [];
+  for (const model of models) {
+    try {
+      const data = await openai(path, buildPayload(model));
+      return { data, model };
+    } catch (err) {
+      const gone = err.status === 404 || MODEL_GONE.test(err.message);
+      if (!gone) throw err;
+      tried.push(model);
+    }
+  }
+  throw Object.assign(
+    new Error(`None of these OpenAI models are available to your account: ${tried.join(", ")}. Set a current model name in the ${path.startsWith("images") ? "OPENAI_IMAGE_MODEL" : "OPENAI_TEXT_MODEL"} environment variable.`),
+    { status: 502 },
+  );
+}

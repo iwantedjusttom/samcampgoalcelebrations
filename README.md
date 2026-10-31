@@ -43,9 +43,9 @@ No dependencies to install; needs Node 18+.
 2. Add environment variables:
    - `OPENAI_API_KEY` – required
    - `APP_PASSWORD` – strongly recommended, so a stranger with the URL can't spend your credits
-   - `OPENAI_IMAGE_MODEL` – optional, defaults to `gpt-image-1`
+   - `OPENAI_IMAGE_MODEL` – optional; defaults to `gpt-image-2.5-sunburst`, falling back to `gpt-image-2.5-flare` and `gpt-image-2` if a model is retired or unavailable
    - `DATABASE_URL` – added by the Neon integration; enables cross-device sync
-   - `OPENAI_TEXT_MODEL` – optional, model for Suggest Direction, defaults to `gpt-5-mini`
+   - `OPENAI_TEXT_MODEL` – optional; model for Suggest Direction, with the same automatic fallback
 3. Deploy. Your API key stays on the server; the browser never sees it.
 
-Note: your OpenAI organization may need to be verified before it can use the `gpt-image-1` model.
+Note: your OpenAI organization may need to be verified before it can use the GPT Image models.

@@ -669,7 +669,7 @@ async function generate() {
     state.history = state.history.slice(0, HISTORY_LIMIT);
     save();
     renderHistory();
-    setStatus("status", `Done in ${Math.round((Date.now() - started) / 1000)}s.`);
+    setStatus("status", `Done in ${Math.round((Date.now() - started) / 1000)}s${data.model ? ` with ${data.model}` : ""}.`);
   } catch (err) {
     setStatus("status", err.message, true);
   } finally {

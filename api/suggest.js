@@ -1,11 +1,12 @@
 // POST /api/suggest -> { direction }
 // Plans a creative direction with an OpenAI text model. Never generates an image.
-import { send, guard, openai, clip } from "./_lib.js";
+import { send, guard, openaiWithFallback, modelList, clip } from "./_lib.js";
 import {
   DIRECTION_FIELDS, OPTIONS, FILLER_OBJECTS, PREFS, PREF_DEFAULTS, isValidOption, findOption,
 } from "../public/direction-options.js";
 
-const MODEL = () => process.env.OPENAI_TEXT_MODEL || "gpt-5-mini";
+// First available wins. OPENAI_TEXT_MODEL (comma-separated) is tried before these.
+const TEXT_MODELS = ["gpt-5.4-mini", "gpt-5.6-terra", "gpt-5-mini", "gpt-4.1-mini"];
 
 const SCHEMA = {
   type: "object",
@@ -105,20 +106,23 @@ export default async function handler(req, res) {
   const body = guard(req, res);
   if (!body) return;
 
-  const model = MODEL();
-  const payload = {
-    model,
-    messages: [
-      { role: "system", content: systemPrompt(body.prefs) },
-      { role: "user", content: userPrompt(body) },
-    ],
-    response_format: { type: "json_schema", json_schema: { name: "creative_direction", strict: true, schema: SCHEMA } },
+  const messages = [
+    { role: "system", content: systemPrompt(body.prefs) },
+    { role: "user", content: userPrompt(body) },
+  ];
+  const buildPayload = (model) => {
+    const payload = {
+      model,
+      messages,
+      response_format: { type: "json_schema", json_schema: { name: "creative_direction", strict: true, schema: SCHEMA } },
+    };
+    if (/^(gpt-5|o\d)/.test(model)) payload.reasoning_effort = "low";
+    return payload;
   };
-  if (/^(gpt-5|o\d)/.test(model)) payload.reasoning_effort = "low";
 
   let raw;
   try {
-    const data = await openai("chat/completions", payload);
+    const { data } = await openaiWithFallback("chat/completions", modelList(process.env.OPENAI_TEXT_MODEL, TEXT_MODELS), buildPayload);
     const msg = data?.choices?.[0]?.message;
     if (msg?.refusal) return send(res, 502, { error: `The model declined: ${msg.refusal}` });
     raw = JSON.parse(msg?.content || "");
