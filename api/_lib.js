@@ -8,7 +8,7 @@ export function send(res, status, body) {
 }
 
 // Returns the parsed JSON body, or null after sending an error response.
-export function guard(req, res) {
+export function guard(req, res, { needsOpenAI = true } = {}) {
   if (req.method !== "POST") { send(res, 405, { error: "Use POST" }); return null; }
 
   const password = process.env.APP_PASSWORD;
@@ -16,7 +16,7 @@ export function guard(req, res) {
     send(res, 401, { error: "Wrong or missing app password" });
     return null;
   }
-  if (!process.env.OPENAI_API_KEY) {
+  if (needsOpenAI && !process.env.OPENAI_API_KEY) {
     send(res, 500, { error: "OPENAI_API_KEY is not set on the server" });
     return null;
   }

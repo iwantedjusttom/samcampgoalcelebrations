@@ -112,3 +112,8 @@ button.lock:disabled { cursor: default; opacity: .2; }
 .prefs select { padding: 5px 8px; font-size: 13px; }
 .row-actions { display: flex; gap: 8px; }
 button:disabled { opacity: .6; cursor: wait; }
+
+/* ---------- cloud sync status ---------- */
+.sync { margin: 6px 0 0; font-size: 12px; color: var(--muted); min-height: 1.2em; }
+.sync.ok { color: var(--ok); }
+.sync.error { color: #b45309; }

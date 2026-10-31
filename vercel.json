@@ -4,6 +4,7 @@
   "outputDirectory": "public",
   "functions": {
     "api/generate.js": { "maxDuration": 120 },
-    "api/suggest.js": { "maxDuration": 60 }
+    "api/suggest.js": { "maxDuration": 60 },
+    "api/data.js": { "maxDuration": 30 }
   }
 }

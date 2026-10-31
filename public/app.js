@@ -95,7 +95,8 @@ function load() {
   if (!Array.isArray(s.history)) s.history = [];
   return s;
 }
-function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+function saveLocal() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+function save() { saveLocal(); scheduleSync(); }
 const active = () => state.people.find((p) => p.id === state.activeId);
 const currentCategory = () => CATEGORIES.find((c) => c.key === $("goal-select").value) || CATEGORIES[0];
 const truncate = (s, n) => (s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s);
@@ -482,8 +483,9 @@ function refreshPreview(force = false) {
 }
 
 // ---------- API ----------
-async function apiPost(path, body, retried = false) {
+async function apiPost(path, body, retried = false, keepalive = false) {
   const res = await fetch(path, {
+    keepalive,
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -498,7 +500,7 @@ async function apiPost(path, body, retried = false) {
     localStorage.setItem("goalCelebrations.password", pw);
     return apiPost(path, body, true);
   }
-  if (!res.ok) throw new Error(data.error || `Server error ${res.status}`);
+  if (!res.ok) throw Object.assign(new Error(data.error || `Server error ${res.status}`), { status: res.status });
   return data;
 }
 
@@ -663,6 +665,7 @@ async function generate() {
     // Only successful generations become history.
     record.ts = Date.now();
     state.history.unshift(record);
+    cloudCall({ action: "addHistory", entry: record });
     state.history = state.history.slice(0, HISTORY_LIMIT);
     save();
     renderHistory();
@@ -704,6 +707,119 @@ function download() {
   };
   img.src = lastImage;
 }
+
+
+// ---------- cloud sync (Neon via /api/data) ----------
+// localStorage stays the instant cache; when a database is configured, people,
+// shared settings, and history are mirrored to it so every device sees the same data.
+// Per-device UI state (selected person/goal, current creative direction) stays local.
+const cloud = { enabled: false, timer: null, syncedPeople: new Map(), syncedSettings: null, inFlight: false };
+
+const settingsPayload = () => ({ template: state.template, style: state.style, quality: state.quality, prefs: state.prefs });
+const cloudPayload = () => ({ people: state.people, settings: settingsPayload(), history: state.history });
+
+function markSynced() {
+  cloud.syncedPeople = new Map(state.people.map((p) => [p.id, JSON.stringify(p)]));
+  cloud.syncedSettings = JSON.stringify(settingsPayload());
+}
+
+function setSync(text, kind = "") {
+  const el = $("sync-status");
+  el.textContent = text;
+  el.className = `sync ${kind}`;
+}
+
+function scheduleSync() {
+  if (!cloud.enabled) return;
+  clearTimeout(cloud.timer);
+  cloud.timer = setTimeout(flushSync, 700);
+}
+
+function pendingChanges() {
+  const upsertPeople = state.people.filter((p) => cloud.syncedPeople.get(p.id) !== JSON.stringify(p));
+  const ids = new Set(state.people.map((p) => p.id));
+  const deletePeople = [...cloud.syncedPeople.keys()].filter((id) => !ids.has(id));
+  const settings = JSON.stringify(settingsPayload()) !== cloud.syncedSettings ? settingsPayload() : undefined;
+  return { upsertPeople, deletePeople, settings, any: upsertPeople.length || deletePeople.length || settings };
+}
+
+async function flushSync(keepalive = false) {
+  clearTimeout(cloud.timer);
+  if (!cloud.enabled) return;
+  if (cloud.inFlight && !keepalive) { scheduleSync(); return; }
+  const changes = pendingChanges();
+  if (!changes.any) return;
+  // Snapshot what we're sending so edits made mid-request are caught next time.
+  const sentPeople = changes.upsertPeople.map((p) => [p.id, JSON.stringify(p)]);
+  const sentSettings = changes.settings ? JSON.stringify(changes.settings) : null;
+  cloud.inFlight = true;
+  setSync("Saving…");
+  try {
+    await apiPost("/api/data", { action: "sync", upsertPeople: changes.upsertPeople, deletePeople: changes.deletePeople, settings: changes.settings }, false, keepalive);
+    for (const [id, j] of sentPeople) cloud.syncedPeople.set(id, j);
+    for (const id of changes.deletePeople) cloud.syncedPeople.delete(id);
+    if (sentSettings) cloud.syncedSettings = sentSettings;
+    setSync("✓ Synced", "ok");
+  } catch (err) {
+    setSync("Not synced — saved on this device, retrying…", "error");
+    console.warn("Sync failed:", err.message);
+    cloud.timer = setTimeout(flushSync, 5000);
+  } finally {
+    cloud.inFlight = false;
+  }
+}
+
+// Fire-and-forget calls (history) that shouldn't block the UI.
+async function cloudCall(body) {
+  if (!cloud.enabled) return;
+  try { await apiPost("/api/data", body); }
+  catch (err) { setSync(`Cloud save failed: ${err.message}`, "error"); }
+}
+
+async function initCloud() {
+  setSync("Connecting…");
+  let remote;
+  try {
+    remote = await apiPost("/api/data", { action: "load" });
+  } catch (err) {
+    if (err.status === 501) setSync("Saved on this device only (no database configured)");
+    else setSync(`Offline — saved on this device only (${err.message})`, "error");
+    return;
+  }
+  cloud.enabled = true;
+
+  if (!remote.people.length && state.people.length) {
+    // First connection: upload what this browser already has.
+    const r = await apiPost("/api/data", { action: "seed", ...cloudPayload() }).catch(() => null);
+    if (!r) {
+      cloud.enabled = false; // never replace local data with an empty cloud copy
+      setSync("Couldn't upload to the cloud — still saved on this device. Reload to retry.", "error");
+      return;
+    }
+    if (!r.skipped) { markSynced(); setSync("✓ Uploaded this device's data to the cloud", "ok"); return; }
+    if (r?.skipped) remote = await apiPost("/api/data", { action: "load" });
+  }
+
+  // Cloud is the source of truth.
+  state.people = remote.people;
+  if (remote.settings) {
+    const { template, style, quality, prefs } = remote.settings;
+    if (typeof template === "string") state.template = template;
+    if (typeof style === "string") state.style = style;
+    if (["low", "medium", "high"].includes(quality)) state.quality = quality;
+    if (prefs && typeof prefs === "object") state.prefs = { ...state.prefs, ...prefs };
+  }
+  state.history = remote.history;
+  if (!state.people.some((p) => p.id === state.activeId)) state.activeId = state.people[0]?.id || null;
+  state = (saveLocal(), load()); // re-run migrations/defaults on cloud data
+  markSynced();
+  if (!remote.settings) scheduleSync(); // push this device's settings up once
+  autoCache = {};
+  render();
+  setSync("✓ Synced", "ok");
+}
+
+window.addEventListener("pagehide", () => { if (cloud.enabled && pendingChanges().any) flushSync(true); });
 
 // ---------- wiring ----------
 buildDirectionFields();
@@ -767,6 +883,7 @@ $("goal-wording").oninput = () => { goalWordingEdited = true; refreshPreview(); 
 $("clear-history").onclick = () => {
   if (!confirm("Clear the record of recent creative directions? (Images aren't affected.)")) return;
   state.history = [];
+  cloudCall({ action: "clearHistory" });
   autoCache = {};
   save();
   renderHistory();
@@ -788,6 +905,10 @@ $("import").onchange = async (e) => {
     if (!confirm(`Replace current data with ${data.people.length} people from the backup?`)) return;
     localStorage.setItem(STORE_KEY, JSON.stringify({ ...state, ...data }));
     state = load();
+    if (cloud.enabled) {
+      await cloudCall({ action: "replace", ...cloudPayload() });
+      markSynced();
+    }
     autoCache = {};
     sessionSuggestions = [];
     render();
@@ -798,3 +919,4 @@ $("import").onchange = async (e) => {
 };
 
 render();
+initCloud();
