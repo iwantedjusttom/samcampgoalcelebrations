@@ -81,17 +81,18 @@
 
       <details id="template-details">
         <summary>Master prompt</summary>
-        <p class="hint">The one illustration prompt used for every image. Placeholders:
-          <code>{{goal}}</code> <code>{{notes}}</code> <code>{{description}}</code> <code>{{name}}</code>
-          <code>{{goal_type}}</code> <code>{{composition}}</code> <code>{{palette}}</code>.
-          If goal, description, composition, or palette are missing they're appended automatically,
-          and the no-people and text rules are always added at the end.</p>
+        <p class="hint">The one illustration prompt used for every image. Placeholders (single or double braces):
+          <code>{goal}</code> <code>{personal_description}</code> <code>{composition_style}</code> <code>{selected_palette}</code>
+          <code>{notes}</code> <code>{name}</code> <code>{goal_type}</code>.
+          Each is replaced with its actual value. If the prompt has no placeholder for the goal, description,
+          composition, or palette, that section is added once at the end. The no-people and text rules are always added.</p>
         <textarea id="template" rows="16"></textarea>
         <button id="reset-template" class="small">Reset master prompt to default</button>
       </details>
 
       <details id="preview-details">
-        <summary>Final prompt <span id="edited-flag" class="hint" hidden>(edited by hand)</span></summary>
+        <summary>Final prompt <span class="hint">(exactly what is sent)</span> <span id="edited-flag" class="hint" hidden>(edited by hand)</span></summary>
+        <p id="unresolved-warning" class="status error" hidden></p>
         <textarea id="preview" rows="14"></textarea>
         <button id="rebuild" class="small">Rebuild from master prompt</button>
       </details>

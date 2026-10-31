@@ -381,6 +381,12 @@ function buildPrompt() {
     composition: compositionText(),
     palette: paletteText(),
   };
+  // Names used in the master prompt.
+  Object.assign(values, {
+    personal_description: description,
+    composition_style: values.composition,
+    selected_palette: values.palette,
+  });
   // Placeholders from earlier versions of the template.
   Object.assign(values, {
     goal_context: [goal, values.notes, description].filter(Boolean).join("\n"),
@@ -390,17 +396,31 @@ function buildPrompt() {
   });
 
   let template = state.template;
-  const has = (...keys) => keys.some((k) => new RegExp(`\\{\\{\\s*${k}\\s*\\}\\}`).test(template));
+  const used = placeholdersIn(template);
+  const has = (...keys) => keys.some((k) => used.includes(k));
+  // Only add a section when the master prompt has no placeholder for it at all.
   if (!has("goal", "goal_context")) template += "\n\nACCOMPLISHMENT\n{{goal}}\n{{notes}}";
-  if (description && !has("description", "goal_context")) template += "\n\nABOUT {{name}}\n{{description}}";
-  if (!has("composition", "visual_concept", "creative_direction")) template += "\n\nCOMPOSITION\n{{composition}}";
-  if (!has("palette", "visual_concept", "creative_direction")) template += "\n\nCOLOR PALETTE\n{{palette}}";
+  if (description && !has("description", "personal_description", "goal_context")) template += "\n\nABOUT {{name}}\n{{description}}";
+  if (!has("composition", "composition_style", "visual_concept", "creative_direction")) template += "\n\nCOMPOSITION\n{{composition}}";
+  if (!has("palette", "selected_palette", "visual_concept", "creative_direction")) template += "\n\nCOLOR PALETTE\n{{palette}}";
 
+  // Anything that looks like a placeholder but isn't a known name stays unresolved.
+  lastUnresolved = placeholdersIn(template).filter((k) => !(k in values));
   const body = template
-    .replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k) => (k in values ? values[k] : m))
+    .replace(PLACEHOLDER, (m, k2, k1) => {
+      const k = k2 || k1;
+      return k in values ? values[k] : m;
+    })
     .replace(/\n{3,}/g, "\n\n")
     .trim();
   return `${body}\n\n${requirementsText(p)}`;
+}
+
+// Matches {{name}} and {name}.
+const PLACEHOLDER = /\{\{\s*([a-z_][a-z0-9_]*)\s*\}\}|\{\s*([a-z_][a-z0-9_]*)\s*\}/gi;
+let lastUnresolved = [];
+function placeholdersIn(text) {
+  return [...new Set([...text.matchAll(PLACEHOLDER)].map((m) => m[1] || m[2]))];
 }
 
 function refreshPreview(force = false) {
@@ -408,6 +428,11 @@ function refreshPreview(force = false) {
   previewEdited = false;
   $("edited-flag").hidden = true;
   $("preview").value = buildPrompt();
+  const warn = $("unresolved-warning");
+  warn.hidden = !lastUnresolved.length;
+  warn.textContent = lastUnresolved.length
+    ? `Unknown placeholder${lastUnresolved.length > 1 ? "s" : ""} in the master prompt: ${lastUnresolved.map((k) => `{${k}}`).join(", ")}`
+    : "";
 }
 
 // ---------- API ----------
@@ -442,6 +467,13 @@ async function generate() {
   if (!previewEdited) refreshPreview();
   const prompt = $("preview").value.trim();
   if (!prompt) return setStatus("status", "The prompt is empty.", true);
+  // A hand-edited prompt is checked as typed; otherwise use what buildPrompt couldn't resolve.
+  const unresolved = previewEdited ? placeholdersIn(prompt) : lastUnresolved;
+  if (unresolved.length) {
+    $("preview-details").open = true;
+    return setStatus("status", `Not sent: the prompt still contains ${unresolved.map((k) => `{${k}}`).join(", ")}. Fix the master prompt (see Final prompt).`, true);
+  }
+  console.info("[Goal Celebrations] Final prompt sent to the image model:\n" + prompt);
 
   generating = true;
   $("generate").disabled = true;
