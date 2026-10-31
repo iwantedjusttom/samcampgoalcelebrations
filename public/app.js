@@ -1,5 +1,4 @@
 // Goal Celebrations — data lives in localStorage, mirrored to Neon when configured.
-import { COMPOSITIONS, TEXT_MODES, FILLER_OBJECTS, findComposition, isValidComposition } from "./direction-options.js";
 
 const CATEGORIES = [
   { key: "professional", label: "Professional goal", hint: "What's their professional goal?" },
@@ -10,32 +9,52 @@ const CATEGORIES = [
   { key: "greatnessNotes", label: "Greatness notes", hint: "Details on their greatness notes" },
 ];
 
-// The artistic identity every image follows. Composition and subject vary;
-// this does not.
-const DEFAULT_STYLE = `Rich contemporary editorial illustration built from bold, simplified geometric shapes, with layered compositions and interesting overlapping forms. Sophisticated but vibrant color with subtle paper grain or printmaking-inspired texture. Playful and creative without looking childish. Visually rich, full-frame square artwork that tells its story through recognizable subjects and meaningful details. Polished and intentional, like a piece commissioned from a talented illustrator. Avoid photorealism, generic corporate graphics, sterile minimalism, overly simple icons, and motivational-poster aesthetics.`;
-
-const DEFAULT_TEMPLATE = `Create a celebration illustration for {{name}}, who just completed their {{goal_type}}.
-
-THE ACCOMPLISHMENT
-{{goal_context}}
-
-ARTISTIC IDENTITY
-{{artistic_identity}}
-
-VISUAL CONCEPT & COMPOSITION
-{{visual_concept}}
-
-VARIETY
-{{variety}}
-
-OUTPUT REQUIREMENTS
-{{output}}`;
-
-// Earlier defaults: saved copies that were never customized get upgraded.
-const PREVIOUS_STYLES = [
-  `Rich, polished editorial illustration with cinematic lighting and a warm, cohesive color palette. Clean composition with breathing room around the text. Feels like a keepsake poster worth sharing.`,
-  `Contemporary editorial illustration with thoughtful shapes and composition, appealing harmonious color, and expressive simplicity. Strong visual storytelling with meaningful details rather than decorative clutter. Polished and human-designed, like a commissioned piece from a great illustrator.`,
+// How the image is organized. The artistic treatment never changes.
+const COMPOSITIONS = [
+  { value: "auto", label: "Automatic", hint: "The generator picks whichever of the three styles best represents the accomplishment." },
+  { value: "abstract", label: "Abstract Composition", hint: "Shapes, patterns, movement, and color communicate the accomplishment without relying on literal objects." },
+  { value: "object", label: "Object-Focused Artwork", hint: "Recognizable objects related to the accomplishment arranged in an imaginative, cohesive illustration. Avoid rigid grids and isolated object collections." },
+  { value: "environment", label: "Illustrated Environment", hint: "A richly composed environment that represents the accomplishment through architecture, landscapes, objects, and atmosphere." },
 ];
+
+const TEXT_MODES = [
+  { value: "none", label: "None" },
+  { value: "name", label: "Name only" },
+  { value: "name_goal", label: "Name and goal" },
+];
+
+const DEFAULT_PALETTE = {
+  id: "default",
+  name: "Teal & Coral",
+  colors: [
+    { name: "Deep teal", hex: "#07566A" },
+    { name: "Dark navy", hex: "#002B43" },
+    { name: "Golden yellow", hex: "#FFB900" },
+    { name: "Warm orange", hex: "#F47A38" },
+    { name: "Coral", hex: "#FF6752" },
+    { name: "Cream", hex: "#FFE6AD" },
+  ],
+};
+
+const DEFAULT_TEMPLATE = `Create a celebration illustration for {{name}}'s completed {{goal_type}}.
+
+ACCOMPLISHMENT
+{{goal}}
+{{notes}}
+
+ABOUT {{name}} (context for mood and meaningful details, not someone to depict)
+{{description}}
+
+ARTISTIC STYLE
+Rich contemporary editorial illustration built from bold, simplified geometric shapes, with layered compositions and interesting overlapping forms. Subtle paper grain or printmaking-inspired texture. Playful and creative without looking childish. Visually rich, full-frame square artwork that tells its story through meaningful details. Polished and intentional, like a piece commissioned from a talented illustrator. Avoid photorealism, generic corporate graphics, sterile minimalism, overly simple icons, and motivational-poster aesthetics.
+
+COMPOSITION
+{{composition}}
+
+COLOR PALETTE
+{{palette}}`;
+
+// Earlier default templates: saved copies that were never customized get upgraded.
 const PREVIOUS_TEMPLATES = [
   `Create a celebratory square (1:1) image honoring {{name}} for completing their {{goal_type}}.
 
@@ -70,60 +89,59 @@ VARIETY
 
 OUTPUT REQUIREMENTS
 {{output}}`,
+  `Create a celebration illustration for {{name}}, who just completed their {{goal_type}}.
+
+THE ACCOMPLISHMENT
+{{goal_context}}
+
+ARTISTIC IDENTITY
+{{artistic_identity}}
+
+VISUAL CONCEPT & COMPOSITION
+{{visual_concept}}
+
+VARIETY
+{{variety}}
+
+OUTPUT REQUIREMENTS
+{{output}}`,
 ];
 
-const LAYERS = ["goal_context", "artistic_identity", "visual_concept", "variety", "output"];
-const LAYER_TITLES = {
-  goal_context: "THE ACCOMPLISHMENT", artistic_identity: "ARTISTIC IDENTITY",
-  visual_concept: "VISUAL CONCEPT & COMPOSITION", variety: "VARIETY", output: "OUTPUT REQUIREMENTS",
-};
-const HISTORY_LIMIT = 50;  // stored
-const HISTORY_WINDOW = 10; // considered for variety
+// Always appended, whatever the master prompt says.
+const NO_PEOPLE_RULE = "Absolutely no people. Do not include humans or human figures, faces, hands, or any other body parts, human silhouettes, cartoon people or characters, or anthropomorphic objects (no objects with faces, eyes, limbs, or human expressions). Tell the story entirely through objects, shapes, places, patterns, and atmosphere.";
 
+const HEX = /^#[0-9a-f]{6}$/i;
 const STORE_KEY = "goalCelebrations.v1";
 const $ = (id) => document.getElementById(id);
+
+const clone = (o) => JSON.parse(JSON.stringify(o));
 
 // ---------- state ----------
 let state = load();
 let previewEdited = false;
 let lastImage = null;
-let sessionPlans = [];   // concepts already planned for the current goal
 let goalWordingEdited = false;
 
-// composition: the user's choice ("auto" or a type). chosen: the planner's pick when on Auto.
-function blankPlan() { return { composition: "auto", chosen: "", concept: "", subjects: "", colors: "" }; }
-
-function normalizeHistory(h) {
-  if (!h || typeof h !== "object") return null;
-  const composition = isValidComposition(h.composition) ? h.composition : isValidComposition(h.approach) ? h.approach : "";
-  return {
-    ts: h.ts || 0, person: h.person || "", category: h.category || "", goal: h.goal || "",
-    composition, concept: h.concept || "", subjects: h.subjects || h.subject || "", colors: h.colors || h.customColors || "",
-  };
-}
 
 function load() {
   let s = null;
   try { s = JSON.parse(localStorage.getItem(STORE_KEY)); } catch {}
-  if (!s || !Array.isArray(s.people)) {
-    s = { people: [], activeId: null, template: DEFAULT_TEMPLATE, style: DEFAULT_STYLE, quality: "high" };
-  }
+  if (!s || !Array.isArray(s.people)) s = { people: [], activeId: null, template: DEFAULT_TEMPLATE, quality: "high" };
   if (!s.template || PREVIOUS_TEMPLATES.includes(s.template)) s.template = DEFAULT_TEMPLATE;
-  if (s.style === undefined || PREVIOUS_STYLES.includes(s.style)) s.style = DEFAULT_STYLE;
   s.prefs = { textMode: TEXT_MODES.some((o) => o.value === s.prefs?.textMode) ? s.prefs.textMode : "none" };
-  s.plan = { ...blankPlan(), ...(s.plan || {}) };
-  if (s.plan.composition !== "auto" && !isValidComposition(s.plan.composition)) s.plan.composition = "auto";
-  delete s.direction; // from the previous Creative Direction system
-  s.history = (Array.isArray(s.history) ? s.history : []).map(normalizeHistory).filter(Boolean);
+  if (!COMPOSITIONS.some((c) => c.value === s.composition)) s.composition = "auto";
+  if (!Array.isArray(s.palettes) || !s.palettes.length) s.palettes = [clone(DEFAULT_PALETTE)];
+  if (!s.palettes.some((p) => p.id === s.paletteId)) s.paletteId = s.palettes[0].id;
+  if (!Array.isArray(s.history)) s.history = [];
+  delete s.direction; delete s.plan; delete s.style; // from earlier versions
   return s;
 }
 function saveLocal() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
 function save() { saveLocal(); scheduleSync(); }
 const active = () => state.people.find((p) => p.id === state.activeId);
 const currentCategory = () => CATEGORIES.find((c) => c.key === $("goal-select").value) || CATEGORIES[0];
-const truncate = (s, n) => (s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s);
-const recentHistory = () => state.history.slice(0, HISTORY_WINDOW);
-const effectiveComposition = () => (state.plan.composition !== "auto" ? state.plan.composition : state.plan.chosen || "");
+const currentPalette = () => state.palettes.find((p) => p.id === state.paletteId) || state.palettes[0];
+const validColors = (pal) => (pal?.colors || []).filter((c) => HEX.test(c.hex));
 
 function newPerson() {
   const goals = {};
@@ -192,7 +210,6 @@ function renderProfile() {
         $("goal-select").value = c.key;
         state.goalKey = c.key;
         onGoalChanged();
-        renderPlan();
       }
       refreshPreview();
       $("celebrate-panel").scrollIntoView({ behavior: "smooth" });
@@ -208,28 +225,19 @@ function renderCelebrate() {
     if (CATEGORIES.some((c) => c.key === state.goalKey)) sel.value = state.goalKey;
   }
   $("template").value = state.template;
-  $("style").value = state.style;
   $("quality").value = state.quality;
   $("pref-textMode").value = state.prefs.textMode;
-  renderPlan();
-  renderHistory();
+  $("composition").value = state.composition;
+  $("composition-hint").textContent = COMPOSITIONS.find((c) => c.value === state.composition).hint;
+  renderPalettes();
+  renderGoalWording();
   refreshPreview();
 }
 
 function render() { renderPeople(); renderProfile(); renderCelebrate(); }
 
-// ---------- composition & concept ----------
-function renderPlan() {
-  const pl = state.plan;
-  $("composition").value = pl.composition;
-  $("concept").value = pl.concept;
-  const meta = [];
-  if (pl.composition === "auto" && pl.chosen && pl.concept) meta.push(`Auto chose: ${findComposition(pl.chosen).label}`);
-  if (pl.subjects) meta.push(`Subjects: ${pl.subjects}`);
-  if (pl.colors) meta.push(`Colors: ${pl.colors}`);
-  $("concept-meta").textContent = meta.join(" · ");
-  $("concept-meta").hidden = !meta.length;
-  renderGoalWording();
+function onGoalChanged() {
+  goalWordingEdited = false;
 }
 
 function renderGoalWording() {
@@ -246,143 +254,156 @@ function defaultGoalWording() {
   return `${cat.label} complete`.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function renderHistory() {
-  const ol = $("history-list");
-  ol.innerHTML = "";
-  const items = recentHistory();
-  $("history-count").textContent = state.history.length ? `(${state.history.length} saved, last ${items.length} shown)` : "(none yet)";
-  for (const h of items) {
-    const li = document.createElement("li");
-    const date = new Date(h.ts).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-    li.innerHTML = `<strong></strong> <span></span><br><em></em>`;
-    li.querySelector("strong").textContent = `${date} · ${h.person || "?"} · ${h.category}`;
-    li.querySelector("span").textContent = [findComposition(h.composition)?.label, h.colors].filter(Boolean).map((x) => `— ${x}`).join(" ");
-    li.querySelector("em").textContent = truncate(h.concept || h.subjects || "(concept chosen by the image model)", 160);
-    ol.appendChild(li);
+// ---------- palettes (user-managed, never AI-generated) ----------
+function renderPalettes() {
+  const sel = $("palette");
+  sel.innerHTML = "";
+  for (const p of state.palettes) sel.add(new Option(p.name || "(unnamed palette)", p.id));
+  sel.value = state.paletteId;
+
+  const pal = currentPalette();
+  renderSwatches();
+
+  $("pm-name").value = pal.name;
+  $("pm-delete").disabled = state.palettes.length <= 1;
+  const list = $("pm-colors");
+  list.innerHTML = "";
+  pal.colors.forEach((c, i) => {
+    const row = document.createElement("div");
+    row.className = "pm-color";
+    row.innerHTML = `<input type="color" /><input type="text" class="hex" maxlength="7" /><input type="text" class="cname" placeholder="Name (optional)" /><button class="small" title="Remove color">×</button>`;
+    const [picker, hex, cname] = row.querySelectorAll("input");
+    picker.value = HEX.test(c.hex) ? c.hex : "#000000";
+    hex.value = c.hex;
+    hex.classList.toggle("bad", !HEX.test(c.hex));
+    cname.value = c.name || "";
+    picker.oninput = () => { c.hex = picker.value.toUpperCase(); hex.value = c.hex; hex.classList.remove("bad"); paletteChanged(false); };
+    hex.oninput = () => {
+      let v = hex.value.trim();
+      if (v && !v.startsWith("#")) v = "#" + v;
+      c.hex = v.toUpperCase();
+      const ok = HEX.test(c.hex);
+      hex.classList.toggle("bad", !ok);
+      if (ok) picker.value = c.hex;
+      paletteChanged(false);
+    };
+    cname.oninput = () => { c.name = cname.value; paletteChanged(false); };
+    row.querySelector("button").onclick = () => { pal.colors.splice(i, 1); paletteChanged(true); };
+    list.appendChild(row);
+  });
+}
+
+function renderSwatches() {
+  const colors = validColors(currentPalette());
+  const sw = $("palette-swatches");
+  sw.innerHTML = "";
+  for (const c of colors) {
+    const span = document.createElement("span");
+    span.style.background = c.hex;
+    span.title = `${c.name ? c.name + " " : ""}${c.hex.toUpperCase()}`;
+    sw.appendChild(span);
   }
-  $("clear-history").hidden = !state.history.length;
+  sw.hidden = !colors.length;
 }
 
-// The planned concept belongs to one goal and one composition choice.
-function clearConcept() {
-  Object.assign(state.plan, { chosen: "", concept: "", subjects: "", colors: "" });
-  sessionPlans = [];
-}
-
-function onGoalChanged() {
-  clearConcept();
-  goalWordingEdited = false;
+// Re-render the editor only for structural changes, so typing isn't interrupted.
+function paletteChanged(rerenderEditor) {
   save();
+  if (rerenderEditor) renderPalettes();
+  else {
+    $("palette").selectedOptions[0].textContent = currentPalette().name || "(unnamed palette)";
+    renderSwatches();
+  }
+  refreshPreview();
 }
 
-// ---------- prompt sections ----------
-function layerGoalContext(p, cat, goal, notes) {
-  const name = p.name.trim() || "this person";
+function addPalette(fromCurrent) {
+  const base = fromCurrent ? clone(currentPalette()) : { name: "New palette", colors: [{ name: "", hex: "#07566A" }, { name: "", hex: "#FFE6AD" }] };
+  const pal = { ...base, id: crypto.randomUUID(), name: fromCurrent ? `${base.name} copy` : base.name };
+  state.palettes.push(pal);
+  state.paletteId = pal.id;
+  paletteChanged(true);
+  $("palette-manager").open = true;
+  $("pm-name").select();
+}
+
+// ---------- prompt ----------
+function compositionText() {
+  const pick = COMPOSITIONS.find((c) => c.value === state.composition);
+  const styles = COMPOSITIONS.filter((c) => c.value !== "auto");
+  const lines = state.composition === "auto"
+    ? [`Choose whichever one of these composition styles best represents this accomplishment:`, ...styles.map((c) => `- ${c.label}: ${c.hint}`)]
+    : [`${pick.label}: ${pick.hint}`];
+  lines.push("The composition style changes only how the image is organized; keep the artistic style exactly as described.");
+  return lines.join("\n");
+}
+
+function paletteText() {
+  const colors = validColors(currentPalette());
+  if (!colors.length) return "Use a cohesive palette that suits the artistic style.";
   return [
-    `What they accomplished: ${goal || `their ${cat.label.toLowerCase()} (no further details given)`}`,
-    notes && `Details about this win: ${notes}`,
-    p.description.trim() && `Who ${name} is, in the words of someone who admires them: ${p.description.trim()}`,
-    "Start from what this accomplishment means for this person and let that drive the imagery, so it feels made for them rather than generic.",
-  ].filter(Boolean).join("\n");
+    "Use this color palette for the entire image:",
+    ...colors.map((c) => `- ${c.hex.toUpperCase()}${c.name?.trim() ? ` (${c.name.trim()})` : ""}`),
+    "Tints and shades of these colors are fine; do not introduce other hues.",
+  ].join("\n");
 }
 
-function layerArtisticIdentity(style) {
-  return [
-    style,
-    "This style is the visual authority for the whole collection and stays consistent from image to image. The composition type below changes how the image is organized, never the art style. Let the color palette suit this piece while staying within this sensibility.",
-  ].filter(Boolean).join("\n");
-}
-
-function layerVisualConcept() {
-  const pl = state.plan;
-  const comp = findComposition(effectiveComposition());
-  return [
-    pl.concept.trim()
-      ? `Visual concept: ${pl.concept.trim()}`
-      : "Visual concept: interpret this accomplishment and build one concrete, specific visual concept around recognizable subjects and meaningful details.",
-    pl.subjects.trim() && `Main subjects: ${pl.subjects.trim()}`,
-    pl.colors.trim() && `Dominant colors: ${pl.colors.trim()}, rendered within the artistic identity above.`,
-    comp
-      ? `Composition type: ${comp.prompt}.`
-      : `Composition type: choose whichever organization best serves the concept (${COMPOSITIONS.map((c) => c.label.toLowerCase()).join(", ")}).`,
-  ].filter(Boolean).join("\n");
-}
-
-function layerVariety() {
-  const filler = `Avoid generic filler props (${FILLER_OBJECTS.join(", ")}) unless they genuinely contribute to the concept.`;
-  const recent = recentHistory();
-  if (!recent.length) return `Make this piece specific to this accomplishment. ${filler}`;
-  const list = recent.map((h) => {
-    const what = h.subjects || (h.concept ? truncate(h.concept, 90) : "");
-    const how = [findComposition(h.composition)?.label, h.colors].filter(Boolean).join("; ");
-    return `- ${[what, how && `(${how})`].filter(Boolean).join(" ")}`;
-  }).filter((l) => l !== "- ").join("\n");
-  if (!list) return `Make this piece specific to this accomplishment. ${filler}`;
-  return `Recent images in this collection:\n${list}\nKeep this one clearly distinct: don't reuse the same props, visual metaphors, or scene structures. ${filler} The visual concept above takes priority, and relevance to this accomplishment matters more than novelty.`;
-}
-
-function layerOutput(p) {
+function requirementsText(p) {
   const name = p.name.trim();
-  const lines = [
-    "Square 1:1 artwork that fills the full frame edge to edge: no borders, frames, mockups, or device screens.",
-    "Any people are stylized illustrated characters. Do not attempt a realistic likeness of a real person.",
-  ];
   const mode = state.prefs.textMode;
   const wording = ($("goal-wording").value.trim() || defaultGoalWording()).replace(/"/g, "'");
-  if (mode === "none" || !name) {
-    lines.push("Do not include any text: no lettering, words, letters, numbers, labels, signage, logos, slogans, or captions anywhere in the image, including on objects in the scene.");
-  } else if (mode === "name") {
-    lines.push(`The only text in the image is the name "${name}", shown once, spelled exactly, and clearly legible. No other words, numbers, labels, quotes, taglines, or slogans anywhere.`);
-  } else {
-    lines.push(`The only text in the image is the name "${name}" and the phrase "${wording}", each shown once, spelled exactly, and clearly legible. Do not add any other words, numbers, labels, quotes, taglines, or slogans.`);
-  }
-  return lines.map((l) => `- ${l}`).join("\n");
+  const text = mode === "none" || !name
+    ? "Do not include any text: no lettering, words, letters, numbers, labels, signage, logos, slogans, or captions anywhere in the image."
+    : mode === "name"
+      ? `The only text in the image is the name "${name}", shown once, spelled exactly, and clearly legible. No other words, numbers, labels, quotes, taglines, or slogans.`
+      : `The only text in the image is the name "${name}" and the phrase "${wording}", each shown once, spelled exactly, and clearly legible. No other words, numbers, labels, quotes, taglines, or slogans.`;
+  return [
+    "REQUIREMENTS",
+    `- ${NO_PEOPLE_RULE}`,
+    "- Square 1:1 artwork that fills the full frame edge to edge: no borders, frames, or mockups.",
+    `- ${text}`,
+  ].join("\n");
 }
 
 function buildPrompt() {
   const p = active();
   if (!p) return "";
   const cat = currentCategory();
-  const goal = p.goals[cat.key]?.text.trim() || "";
+  const goal = p.goals[cat.key]?.text.trim() || `(no details written for their ${cat.label.toLowerCase()})`;
   const notes = $("notes").value.trim();
-  const style = $("style").value.trim();
-  const allGoals = CATEGORIES
-    .filter((c) => p.goals[c.key]?.text.trim())
-    .map((c) => `- ${c.label}${p.goals[c.key].done ? " (complete)" : ""}: ${p.goals[c.key].text.trim()}`)
-    .join("\n");
-
-  const visual = layerVisualConcept();
+  const description = p.description.trim();
   const values = {
     name: p.name.trim() || "this person",
-    description: p.description.trim(),
     goal_type: cat.label.toLowerCase(),
-    goal: goal || `(no details written for their ${cat.label.toLowerCase()})`,
+    goal,
     notes: notes ? `Details about this win: ${notes}` : "",
-    all_goals: allGoals,
-    style,
-    goal_context: layerGoalContext(p, cat, goal, notes),
-    artistic_identity: layerArtisticIdentity(style),
-    visual_concept: visual,
-    creative_direction: visual, // older custom templates
-    variety: layerVariety(),
-    output: layerOutput(p),
+    description,
+    composition: compositionText(),
+    palette: paletteText(),
   };
+  // Placeholders from earlier versions of the template.
+  Object.assign(values, {
+    goal_context: [goal, values.notes, description].filter(Boolean).join("\n"),
+    visual_concept: `${values.composition}\n\n${values.palette}`,
+    creative_direction: `${values.composition}\n\n${values.palette}`,
+    artistic_identity: "", style: "", variety: "", output: "", all_goals: "",
+  });
 
-  // Custom templates without a section still get it, appended at the end.
   let template = state.template;
-  for (const layer of LAYERS) {
-    const present = new RegExp(`\\{\\{\\s*${layer}\\s*\\}\\}`).test(template) ||
-      (layer === "visual_concept" && /\{\{\s*creative_direction\s*\}\}/.test(template));
-    if (!present) template += `\n\n${LAYER_TITLES[layer]}\n{{${layer}}}`;
-  }
-  return template
+  const has = (...keys) => keys.some((k) => new RegExp(`\\{\\{\\s*${k}\\s*\\}\\}`).test(template));
+  if (!has("goal", "goal_context")) template += "\n\nACCOMPLISHMENT\n{{goal}}\n{{notes}}";
+  if (description && !has("description", "goal_context")) template += "\n\nABOUT {{name}}\n{{description}}";
+  if (!has("composition", "visual_concept", "creative_direction")) template += "\n\nCOMPOSITION\n{{composition}}";
+  if (!has("palette", "visual_concept", "creative_direction")) template += "\n\nCOLOR PALETTE\n{{palette}}";
+
+  const body = template
     .replace(/\{\{\s*(\w+)\s*\}\}/g, (m, k) => (k in values ? values[k] : m))
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+  return `${body}\n\n${requirementsText(p)}`;
 }
 
 function refreshPreview(force = false) {
-  renderGoalWording();
   if (previewEdited && !force) return;
   previewEdited = false;
   $("edited-flag").hidden = true;
@@ -411,64 +432,6 @@ async function apiPost(path, body, retried = false, keepalive = false) {
   return data;
 }
 
-// ---------- planning ----------
-let planning = false;
-
-const planRecord = () => ({
-  category: currentCategory().label, composition: effectiveComposition(),
-  concept: state.plan.concept, subjects: state.plan.subjects, colors: state.plan.colors,
-});
-
-// Interpret the goal and plan a concept + composition. Returns true on success.
-async function planConcept(another = false) {
-  const p = active();
-  if (!p) { setStatus("plan-status", "Pick or add a person first.", true); return false; }
-  if (planning) return false;
-  const cat = currentCategory();
-  const pl = state.plan;
-  const avoid = another ? [...sessionPlans] : [];
-  if (another && pl.concept && !avoid.some((a) => a.concept === pl.concept)) avoid.push(planRecord());
-
-  planning = true;
-  $("try-another").disabled = true;
-  setStatus("plan-status", another ? "Planning a different composition…" : "Planning the concept…");
-  try {
-    const { plan } = await apiPost("/api/suggest", {
-      name: p.name.trim(),
-      category: cat.label,
-      goal: p.goals[cat.key]?.text.trim() || "",
-      notes: $("notes").value.trim(),
-      description: p.description.trim(),
-      style: $("style").value.trim(),
-      textMode: state.prefs.textMode,
-      composition: pl.composition,
-      history: recentHistory().map(({ category, composition, concept, subjects, colors }) => ({ category, composition, concept, subjects, colors })),
-      avoid,
-    });
-    if (!plan || typeof plan.concept !== "string" || !plan.concept.trim()) throw new Error("the response didn't include a usable concept");
-    const str = (v) => (typeof v === "string" ? v.trim() : "");
-    pl.chosen = pl.composition !== "auto" ? pl.composition : isValidComposition(plan.composition) ? plan.composition : "";
-    pl.concept = plan.concept.trim();
-    pl.subjects = str(plan.subjects);
-    pl.colors = str(plan.colors);
-    sessionPlans.push(planRecord());
-    save();
-    renderPlan();
-    refreshPreview();
-    setStatus("plan-status", "");
-    return true;
-  } catch (err) {
-    // During Generate this is non-fatal, so it's a note rather than an error.
-    setStatus("plan-status", another
-      ? `Couldn't plan another composition (${err.message}). Your current concept is unchanged.`
-      : `Couldn't plan a concept (${err.message}). The image model will interpret the goal itself.`, another);
-    return false;
-  } finally {
-    planning = false;
-    $("try-another").disabled = false;
-  }
-}
-
 // ---------- generation ----------
 let generating = false;
 
@@ -476,53 +439,25 @@ async function generate() {
   const p = active();
   if (!p) return setStatus("status", "Pick or add a person first.", true);
   if (generating) return;
+  if (!previewEdited) refreshPreview();
+  const prompt = $("preview").value.trim();
+  if (!prompt) return setStatus("status", "The prompt is empty.", true);
+
   generating = true;
   $("generate").disabled = true;
   $("regenerate").disabled = true;
   const started = Date.now();
-  let tick = null;
+  const tick = setInterval(() => {
+    setStatus("status", `Generating… ${Math.round((Date.now() - started) / 1000)}s (usually 30–90s)`);
+  }, 1000);
+  setStatus("status", "Generating…");
 
   try {
-    // Interpret the goal first, unless there's already a concept or a hand-edited prompt.
-    if (!previewEdited && !state.plan.concept.trim()) {
-      setStatus("status", "Planning the concept…");
-      await planConcept(false);
-    }
-    if (!previewEdited) refreshPreview();
-    const prompt = $("preview").value.trim();
-    if (!prompt) throw new Error("The prompt is empty.");
-
-    const cat = currentCategory();
-    const record = {
-      ts: 0,
-      person: p.name.trim(),
-      category: cat.label,
-      goal: truncate(p.goals[cat.key]?.text.trim() || "", 200),
-      composition: effectiveComposition(),
-      concept: state.plan.concept.trim(),
-      subjects: state.plan.subjects.trim(),
-      colors: state.plan.colors.trim(),
-      promptEdited: previewEdited,
-    };
-
-    const genStart = Date.now();
-    tick = setInterval(() => {
-      setStatus("status", `Generating… ${Math.round((Date.now() - genStart) / 1000)}s (usually 30–90s)`);
-    }, 1000);
-    setStatus("status", "Generating…");
-
     const data = await apiPost("/api/generate", { prompt, quality: $("quality").value });
     if (!data.image) throw new Error("No image came back");
     lastImage = data.image;
     $("result-img").src = data.image;
     $("result").hidden = false;
-    // Only successful generations become history.
-    record.ts = Date.now();
-    state.history.unshift(record);
-    cloudCall({ action: "addHistory", entry: record });
-    state.history = state.history.slice(0, HISTORY_LIMIT);
-    save();
-    renderHistory();
     setStatus("status", `Done in ${Math.round((Date.now() - started) / 1000)}s${data.model ? ` with ${data.model}` : ""}.`);
   } catch (err) {
     setStatus("status", err.message, true);
@@ -566,10 +501,10 @@ function download() {
 // ---------- cloud sync (Neon via /api/data) ----------
 // localStorage stays the instant cache; when a database is configured, people,
 // shared settings, and history are mirrored to it so every device sees the same data.
-// Per-device UI state (selected person/goal, composition choice, current concept) stays local.
+// Per-device UI state (selected person/goal, composition choice) stays local.
 const cloud = { enabled: false, timer: null, syncedPeople: new Map(), syncedSettings: null, inFlight: false };
 
-const settingsPayload = () => ({ template: state.template, style: state.style, quality: state.quality, prefs: state.prefs });
+const settingsPayload = () => ({ template: state.template, quality: state.quality, prefs: state.prefs, palettes: state.palettes, paletteId: state.paletteId });
 const cloudPayload = () => ({ people: state.people, settings: settingsPayload(), history: state.history });
 
 function markSynced() {
@@ -623,7 +558,7 @@ async function flushSync(keepalive = false) {
   }
 }
 
-// Fire-and-forget calls (history) that shouldn't block the UI.
+// Fire-and-forget calls that shouldn't block the UI.
 async function cloudCall(body) {
   if (!cloud.enabled) return;
   try { await apiPost("/api/data", body); }
@@ -657,9 +592,10 @@ async function initCloud() {
   // Cloud is the source of truth.
   state.people = remote.people;
   if (remote.settings) {
-    const { template, style, quality, prefs } = remote.settings;
+    const { template, quality, prefs, palettes, paletteId } = remote.settings;
     if (typeof template === "string") state.template = template;
-    if (typeof style === "string") state.style = style;
+    if (Array.isArray(palettes)) state.palettes = palettes;
+    if (typeof paletteId === "string") state.paletteId = paletteId;
     if (["low", "medium", "high"].includes(quality)) state.quality = quality;
     if (prefs && typeof prefs === "object") state.prefs = { ...state.prefs, ...prefs };
   }
@@ -677,7 +613,6 @@ async function initCloud() {
 window.addEventListener("pagehide", () => { if (cloud.enabled && pendingChanges().any) flushSync(true); });
 
 // ---------- wiring ----------
-$("composition").add(new Option("Auto", "auto"));
 for (const c of COMPOSITIONS) $("composition").add(new Option(c.label, c.value));
 for (const o of TEXT_MODES) $("pref-textMode").add(new Option(o.label, o.value));
 
@@ -693,16 +628,33 @@ $("delete-person").onclick = () => {
 };
 $("name").oninput = (e) => { active().name = e.target.value; save(); renderPeople(); refreshPreview(); };
 $("description").oninput = (e) => { active().description = e.target.value; save(); refreshPreview(); };
-$("goal-select").onchange = () => { state.goalKey = $("goal-select").value; onGoalChanged(); renderPlan(); refreshPreview(); };
+$("goal-select").onchange = () => { state.goalKey = $("goal-select").value; onGoalChanged(); saveLocal(); renderGoalWording(); refreshPreview(); };
 $("notes").oninput = () => refreshPreview();
-$("style").oninput = (e) => { state.style = e.target.value; save(); refreshPreview(); };
+$("composition").onchange = (e) => {
+  state.composition = e.target.value;
+  $("composition-hint").textContent = COMPOSITIONS.find((c) => c.value === state.composition).hint;
+  saveLocal();
+  refreshPreview();
+};
+$("palette").onchange = (e) => { state.paletteId = e.target.value; save(); renderPalettes(); refreshPreview(); };
+$("pm-name").oninput = (e) => { currentPalette().name = e.target.value; paletteChanged(false); };
+$("pm-add-color").onclick = () => { currentPalette().colors.push({ name: "", hex: "#FFFFFF" }); paletteChanged(true); };
+$("pm-new").onclick = () => addPalette(false);
+$("pm-duplicate").onclick = () => addPalette(true);
+$("pm-delete").onclick = () => {
+  const pal = currentPalette();
+  if (state.palettes.length <= 1 || !confirm(`Delete the palette "${pal.name}"?`)) return;
+  state.palettes = state.palettes.filter((p) => p.id !== pal.id);
+  state.paletteId = state.palettes[0].id;
+  paletteChanged(true);
+};
 $("template").oninput = (e) => { state.template = e.target.value; save(); refreshPreview(); };
 $("quality").onchange = (e) => { state.quality = e.target.value; save(); };
-$("pref-textMode").onchange = (e) => { state.prefs.textMode = e.target.value; save(); refreshPreview(); };
+$("pref-textMode").onchange = (e) => { state.prefs.textMode = e.target.value; save(); renderGoalWording(); refreshPreview(); };
+$("goal-wording").oninput = () => { goalWordingEdited = true; refreshPreview(); };
 $("reset-template").onclick = () => {
-  if (!confirm("Reset the template and style to the defaults?")) return;
+  if (!confirm("Reset the master prompt to the default?")) return;
   state.template = DEFAULT_TEMPLATE;
-  state.style = DEFAULT_STYLE;
   save();
   renderCelebrate();
 };
@@ -711,31 +663,6 @@ $("rebuild").onclick = () => refreshPreview(true);
 $("generate").onclick = generate;
 $("regenerate").onclick = generate;
 $("download").onclick = download;
-
-$("composition").onchange = (e) => {
-  state.plan.composition = e.target.value;
-  clearConcept(); // the old concept was planned for a different composition
-  save();
-  renderPlan();
-  refreshPreview();
-};
-$("try-another").onclick = () => planConcept(true);
-$("concept").oninput = (e) => {
-  state.plan.concept = e.target.value;
-  if (!e.target.value.trim()) clearConcept();
-  save();
-  if (!e.target.value.trim()) renderPlan();
-  refreshPreview();
-};
-$("goal-wording").oninput = () => { goalWordingEdited = true; refreshPreview(); };
-$("clear-history").onclick = () => {
-  if (!confirm("Clear the record of recent images? (Downloaded images aren't affected.)")) return;
-  state.history = [];
-  cloudCall({ action: "clearHistory" });
-  save();
-  renderHistory();
-  refreshPreview();
-};
 
 $("export").onclick = () => {
   const a = document.createElement("a");
@@ -756,7 +683,6 @@ $("import").onchange = async (e) => {
       await cloudCall({ action: "replace", ...cloudPayload() });
       markSynced();
     }
-    sessionPlans = [];
     render();
   } catch {
     alert("That file doesn't look like a Goal Celebrations backup.");

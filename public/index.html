@@ -56,44 +56,44 @@
         <select id="goal-select"></select>
       </label>
       <label>Anything specific about this win? <span class="hint">(optional, just for this image)</span>
-        <textarea id="notes" rows="3" placeholder="e.g. She finished two weeks early and brought her whole team along."></textarea>
-      </label>
-      <label>Image style <span class="hint">(the artistic identity every image follows)</span>
-        <textarea id="style" rows="4"></textarea>
+        <textarea id="notes" rows="2" placeholder="e.g. She finished two weeks early and brought her whole team along."></textarea>
       </label>
 
-      <div class="composition-row">
-        <label class="inline">Composition Type <select id="composition"></select></label>
-        <button id="try-another" class="small" title="Plan a different concept and composition for the same goal">Try Another Composition</button>
+      <div class="grid2">
+        <label>Composition style <select id="composition"></select></label>
+        <label>Color palette <select id="palette"></select></label>
       </div>
-      <label>Visual concept <span class="hint">(planned automatically when you generate; edit freely)</span>
-        <textarea id="concept" rows="2" placeholder="Leave empty and it will be planned from the goal when you hit Generate."></textarea>
-      </label>
-      <p id="concept-meta" class="hint" hidden></p>
-      <p id="plan-status" class="status"></p>
+      <p id="composition-hint" class="hint"></p>
+      <div id="palette-swatches" class="swatches"></div>
 
-      <details id="history-details">
-        <summary>Recent images <span id="history-count" class="hint"></span></summary>
-        <ol id="history-list"></ol>
-        <button id="clear-history" class="small">Clear history</button>
+      <details id="palette-manager">
+        <summary>Manage color palettes</summary>
+        <p class="hint">Edits apply to the palette selected above and save automatically.</p>
+        <div class="pm-actions">
+          <button id="pm-new" class="small">+ New palette</button>
+          <button id="pm-duplicate" class="small">Duplicate</button>
+          <button id="pm-delete" class="small danger">Delete</button>
+        </div>
+        <label>Palette name <input id="pm-name" type="text" /></label>
+        <div id="pm-colors"></div>
+        <button id="pm-add-color" class="small">+ Add color</button>
       </details>
 
       <details id="template-details">
-        <summary>Master prompt template</summary>
-        <p class="hint">How everything gets combined. Section placeholders:
-          <code>{{goal_context}}</code> <code>{{artistic_identity}}</code> <code>{{visual_concept}}</code>
-          <code>{{variety}}</code> <code>{{output}}</code>. Also available:
-          <code>{{name}}</code> <code>{{description}}</code> <code>{{goal_type}}</code> <code>{{goal}}</code>
-          <code>{{notes}}</code> <code>{{all_goals}}</code> <code>{{style}}</code>.
-          Any section you leave out is appended automatically.</p>
+        <summary>Master prompt</summary>
+        <p class="hint">The one illustration prompt used for every image. Placeholders:
+          <code>{{goal}}</code> <code>{{notes}}</code> <code>{{description}}</code> <code>{{name}}</code>
+          <code>{{goal_type}}</code> <code>{{composition}}</code> <code>{{palette}}</code>.
+          If goal, description, composition, or palette are missing they're appended automatically,
+          and the no-people and text rules are always added at the end.</p>
         <textarea id="template" rows="16"></textarea>
-        <button id="reset-template" class="small">Reset template &amp; style to default</button>
+        <button id="reset-template" class="small">Reset master prompt to default</button>
       </details>
 
       <details id="preview-details">
         <summary>Final prompt <span id="edited-flag" class="hint" hidden>(edited by hand)</span></summary>
         <textarea id="preview" rows="14"></textarea>
-        <button id="rebuild" class="small">Rebuild from template</button>
+        <button id="rebuild" class="small">Rebuild from master prompt</button>
       </details>
 
       <div class="prefs">

@@ -66,7 +66,7 @@ export async function openaiWithFallback(path, models, buildPayload) {
     }
   }
   throw Object.assign(
-    new Error(`None of these OpenAI models are available to your account: ${tried.join(", ")}. Set a current model name in the ${path.startsWith("images") ? "OPENAI_IMAGE_MODEL" : "OPENAI_TEXT_MODEL"} environment variable.`),
+    new Error(`None of these OpenAI models are available to your account: ${tried.join(", ")}. Set a current model name in the OPENAI_IMAGE_MODEL environment variable.`),
     { status: 502 },
   );
 }
